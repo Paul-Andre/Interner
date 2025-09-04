@@ -12,6 +12,7 @@ struct SavedString{
   char data[];
 };
 
+
 struct InternedToken {
   hash_t value;
   bool operator==(const InternedToken &other) const{
@@ -22,6 +23,10 @@ struct InternedToken {
   }
   hash_t hash() const{
     return value;
+  }
+  explicit operator bool() const {
+    // Assumes the hash of zero is zero.
+    return value != 0;
   }
 };
 
@@ -62,14 +67,26 @@ bool operator!=(StringPiece a, StringPiece b){
   return !(a==b);
 }
 
+// mallocs a new SavedString
+SavedString *new_saved_string(StringPiece p){
+  ssize_t l = p.size;
+  const char *s = p.data;
+  SavedString *ret = (SavedString *)calloc(sizeof(ssize_t) + l, 1);
+  ret->size = l;
+  memcpy(ret->data, s, l);
+  return ret;
+}
+
 hash_t hash_string(StringPiece p){
-  // The hash returned might be zero.
   ssize_t l=p.size;
   const char *s = p.data;
   hash_t a = (hash_t)(0) - (hash_t)(1);
   a = acc_hash(a,l);
   for(int i=0; i<l; i++) {
     a = acc_hash(a, s[i]);
+  }
+  if (a == 0) {
+    a = (1ull << 63);
   }
   return a;
 }

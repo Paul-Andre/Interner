@@ -2,6 +2,7 @@
 
 #include "basics.h"
 #include "StringPiece.h"
+#include "Arena.hpp"
 
 
 namespace {
@@ -24,7 +25,9 @@ struct StringInterner {
   ssize_t capacity;
 
   StringInterner(): buckets(nullptr), size(0), capacity(0){}
-  InternedToken intern(StringPiece p);
+
+  InternedToken find(StringPiece p, hash_t h);
+  InternedToken intern(StringPiece p, hash_t h);
   void print();
 };
 
@@ -80,6 +83,7 @@ namespace {
     _hm_shift_forward(map, pos, first_empty);
   }
 
+  // TODO: how is this different from simply insert?
   void _hm_reinsert (StringInterner *map, Bucket b){
     uint64_t h_trancated = b.hash & (map->capacity - 1);
 
@@ -97,6 +101,7 @@ namespace {
         if (ii > hh_diff) {
           _hm_shift_forward_until_empty(map, i);
           map->buckets[i] = b;
+          return;
         }
       }
     }
@@ -119,15 +124,6 @@ namespace {
   }
 
   // TODO: use an arena instead of calloc
-  SavedString *new_saved_string(StringPiece p){
-    ssize_t l = p.size;
-    const char *s = p.data;
-    SavedString *ret = (SavedString *)calloc(sizeof(ssize_t) + l, 1);
-    ret->size = l;
-    memcpy(ret->data, s, l);
-    return ret;
-  }
-
   InternedToken toToken(SavedString *s) {
     InternedToken ret;
     assert(unhash64(hash64((uint64_t)s)) == (uint64_t) s);
@@ -138,6 +134,7 @@ namespace {
 }
 
 void  StringInterner::print() {
+  using namespace std;
   auto map = this;
   for (uint64_t ii = 0; ii < map->capacity; ii++) {
     uint64_t i = (ii + 0) & (map->capacity - 1);
@@ -151,14 +148,60 @@ void  StringInterner::print() {
 
 }
 
+InternedToken StringInterner::find(StringPiece p, hash_t h){
+  auto map = this;
 
-InternedToken StringInterner::intern(StringPiece p){
+  //hash_t h = hash_string(p);
+  assert(h!=0);
+
+  uint64_t h_trancated = h & (map->capacity - 1);
+
+  for (uint64_t ii = 0; ii < map->capacity; ii++) {
+    uint64_t i = (ii + h_trancated) & (map->capacity - 1);
+    if (map->buckets[i].hash == 0) {
+      return toToken(NULL);
+
+    } else if (map->buckets[i].hash == h) {
+      if (map->buckets[i].data == p) {
+        return toToken(map->buckets[i].data);
+      }
+      continue;
+    } else {
+      hash_t hh = map->buckets[i].hash;
+      uint64_t hht = hh & (map->capacity - 1);
+      uint64_t hh_diff = (i - hht) & (map->capacity - 1);
+      if (ii > hh_diff) {
+        return toToken(NULL);
+      }
+    }
+  }
+  return toToken(NULL);
+}
+
+thread_local Arena arena;
+
+SavedString *thread_alloc_saved_string(StringPiece p) {
+  ssize_t l = p.size;
+  const char *s = p.data;
+
+  SavedString *ret = (SavedString *)
+    //calloc(sizeof(ssize_t) + l, 1);
+    arena.alloc(sizeof(ssize_t) + l, alignof(SavedString));
+
+  ret->size = l;
+  memcpy(ret->data, s, l);
+  return ret;
+}
+
+
+// TODO: make this use an internal function
+InternedToken StringInterner::intern(StringPiece p, hash_t h){
   auto map = this;
   if (!_hm_has_capacity(map->size, map->capacity)) {
     _hm_increase_size(map);
   }
 
-  hash_t h = hash_string(p);
+  //hash_t h = hash_string(p);
   assert(h!=0);
 
   uint64_t h_trancated = h & (map->capacity - 1);
@@ -168,7 +211,7 @@ InternedToken StringInterner::intern(StringPiece p){
     uint64_t i = (ii + h_trancated) & (map->capacity - 1);
     if (map->buckets[i].hash == 0) { // is empty
       map->buckets[i].hash = h;
-      map->buckets[i].data = new_saved_string(p);
+      map->buckets[i].data = thread_alloc_saved_string(p);
       map->size++;
       ret = map->buckets[i].data;
       break;
@@ -185,7 +228,7 @@ InternedToken StringInterner::intern(StringPiece p){
       if (ii > hh_diff) {
         _hm_shift_forward_until_empty(map, i);
         map->buckets[i].hash = h;
-        map->buckets[i].data = new_saved_string(p);
+        map->buckets[i].data = thread_alloc_saved_string(p);
         map->size++;
         ret = map->buckets[i].data;
         break;
