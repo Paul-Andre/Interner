@@ -22,6 +22,8 @@ struct Memory {
   ssize_t sizeB;
   ssize_t ptr;
 
+  vector<Value*> anchors;
+
   ssize_t quantityLastTime;
 
   Memory() {
@@ -34,6 +36,13 @@ struct Memory {
     ptr = 0;
 
     quantityLastTime = 0;
+  }
+
+  void push_anchor(Value *v) {
+    anchors.push_back(v);
+  }
+  void pop_anchor() {
+    anchors.pop_back();
   }
 
   void print() {
@@ -51,7 +60,7 @@ struct Memory {
     }
     cout <<endl;
   }
-  void collect(vector<Value*> &anchors) {
+  void collect() {
     cerr << "collecting" << endl;
     if (sizeB < quantityLastTime*growthRate) {
       int newSize = std::max(minSize, quantityLastTime*growthRate);
@@ -104,12 +113,14 @@ struct Memory {
     cerr << "collection finished" <<endl;
   };
 
-  Value *allocate(ssize_t alloc_size, vector<Value*> &anchors) {
+  Value *allocate(ssize_t alloc_size) {
     if (ptr+alloc_size > sizeA) {
-      collect(anchors);
+      collect();
     }
+    // If after garbage collection there's not enough space,
+    // run `collect` again to increase the memory size.
     if (ptr+alloc_size > sizeA) {
-      collect(anchors);
+      collect();
     }
     Value *ret = areaA+ptr;
     ptr += alloc_size;
@@ -117,10 +128,10 @@ struct Memory {
   }
 
 
-  Value makePair(Value a, Value b, vector<Value*> &anchors) {
+  Value makePair(Value a, Value b) {
     anchors.push_back(&a);
     anchors.push_back(&b);
-    Value *location = allocate(2, anchors);
+    Value *location = allocate(2);
     location[0] = a;
     location[1] = b;
     Value ret;

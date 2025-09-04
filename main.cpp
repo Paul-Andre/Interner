@@ -55,7 +55,6 @@ StringPiece skipWhitespace(StringPiece s) {
 struct Parser{
   Memory *memory;
   StringInterner *interner;
-  vector<Value*> anchors;
   ResultAndRest parseList(StringPiece s);
   ResultAndRest parse(StringPiece s);
 };
@@ -68,12 +67,12 @@ ResultAndRest Parser::parseList(StringPiece s) {
     return {{tags::EMPTY_LIST, 0}, s};
   }
   ResultAndRest r = parse(s);
-  anchors.push_back(&r.result);
+  memory->push_anchor(&r.result);
   ResultAndRest t = parseList(r.rest);
-  anchors.push_back(&t.result);
-  Value pair = memory->makePair(r.result, t.result, anchors);
-  anchors.pop_back();
-  anchors.pop_back();
+  memory->push_anchor(&t.result);
+  Value pair = memory->makePair(r.result, t.result);
+  memory->pop_anchor();
+  memory->pop_anchor();
   return {pair, t.rest};
 }
 ResultAndRest Parser::parse(StringPiece s) {
@@ -112,7 +111,8 @@ ResultAndRest Parser::parse(StringPiece s) {
   }
 }
 
-string input = "(hello (good world asdf asdf() adf() (asdfasdf) asdf))";
+// string input = "(hello (good world asdf asdf() adf() (asdfasdf) asdf))";
+string input = "(+ 1 2)";
 
 /*
 printList(ostream& ioOut, Value v) {
@@ -124,38 +124,61 @@ printList(ostream& ioOut, Value v) {
 }
 */
 
-ostream &operator<<(ostream& ioOut, Value v) {
+namespace builtin_symbols {
+  Value PLUS;
+  Value MINUS;
+  Value TIMES;
+  Value IF;
+  Value LET;
+
+
+}
+
+void intern_builtin_symbols(StringInterner &interner) {
+  using namespace builtin_symbols;
+  {
+      PLUS = Value::symbol(interner.intern("+"));
+      MINUS = Value::symbol(interner.intern("-"));
+      TIMES = Value::symbol(interner.intern("*"));
+      IF = Value::symbol(interner.intern("if"));
+      LET = Value::symbol(interner.intern("let"));
+  } // namespace builtin_symbols;
+}
+
+Value eval(Value AST) {
+  Value v = AST;
   if (v.type == tags::NONE) {
-    ioOut << "#none";
+    return AST;
   } else if (v.type == tags::NONE) {
-    ioOut << "#none";
+    return AST;
   } else if (v.type == tags::BOOL && v.value==0) {
-    ioOut << "#false";
+    return AST;
   } else if (v.type == tags::BOOL && v.value!=0) {
-    ioOut << "#true";
+    return AST;
   } else if (v.type == tags::SYMBOL) {
-    InternedToken t;
-    t.value = (hash_t) v.value;
-    ioOut << t;
+    return AST;
   } else if (v.type == tags::FLOAT) {
-    double d;
-    d = (double) v.value;
-    ioOut << d;
+    return AST;
   } else if (v.type == tags::PAIR) {
     Value car = v.car();
     Value cdr = v.cdr();
-    ioOut << "( " << car << " . " << cdr << " )";
-  } else if (v.type == tags::EMPTY_LIST) {
-    ioOut << "()";
+    
+    Value cdr = v.cdr();
+    if (car == builtin_symbols::IF) {
+
+    }
   } else {
-    ioOut << "#unknown";
+    return AST;
   }
-  return ioOut;
+  return AST;
+
+
 }
 
 int main() {
   StringInterner interner;
   Memory memory;
+
   Parser p{&memory, &interner, {}};
 
   ResultAndRest r = p.parse(input);

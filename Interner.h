@@ -118,7 +118,7 @@ namespace {
     }
   }
 
-
+  // TODO: use an arena instead of calloc
   SavedString *new_saved_string(StringPiece p){
     ssize_t l = p.size;
     const char *s = p.data;
