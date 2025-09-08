@@ -4,6 +4,8 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <unordered_map>
+#include <map>
 using namespace std;
 using std::vector;
 using std::cout;
@@ -22,7 +24,8 @@ SavedString *create_random_string(int max_len){
   return new_saved_string(StringPiece(len, random_scratch));
 }
 
-vector<StringPiece> glob_strings;
+vector<StringPiece> in_strings;
+vector<InternedToken> out_strings;
 
 Sharded s;
 void thread_function(int x, int begin, int end) {
@@ -30,8 +33,10 @@ void thread_function(int x, int begin, int end) {
 
     for (int i = begin; i<end; i++) {
 
-      s.intern(glob_strings[i]);
+      out_strings[i] = s.intern(in_strings[i]);
       //cout << (a==c) <<endl;
+      assert(out_strings[i] == in_strings[i]);
+      //cout << out_strings[i] << " " << in_strings[i] <<endl;
 
       //cout<<d.value<<endl;
       //cout << (a==d) <<endl;
@@ -42,34 +47,56 @@ void thread_function(int x, int begin, int end) {
     std::cout << "Thread " << x<<" ended." << std::endl;
 }
 
-vector<StringPiece> createRandom(int len) {
+void initialize_in_strings(int len) {
   vector<StringPiece> recurring;
   for (int i = 0; i<10*1000 ; i++) {
     SavedString *r = create_random_string(16);
     recurring.push_back(r);
   }
 
-  vector<StringPiece> ret;
   for (int i = 0; i<len; i++) {
     int a = rand()%3;
     if (a ==0) {
-      ret.push_back(new_saved_string(recurring[rand()%recurring.size()]));
+      in_strings.push_back(new_saved_string(recurring[rand()%recurring.size()]));
     } else if (a ==1) {
-      ret.push_back(create_random_string(16));
+      in_strings.push_back(create_random_string(16));
     } else {
-      ret.push_back(create_random_string(2));
+      in_strings.push_back(create_random_string(2));
     }
   }
-  return ret;
 
 }
 
+void initialize_out_strings(int len) {
+  for (int i = 0; i<len; i++) {
+    out_strings.push_back(InternedToken{.value=0});
+  }
+}
 
-int main() {
-  int len = 10*1000*1000;
-  glob_strings=createRandom(len);
-  assert(glob_strings.size() == len);
+int test_basic() {
+  Sharded interner;
+  const char *s = "hello_world";
+  StringPiece sp(s);
 
+  InternedToken tok = interner.intern(sp);
+  cout<<tok<<endl;
+  cout<<s<<endl;
+  cout<<sp<<endl;
+
+  return 0;
+}
+
+
+int test_major() {
+  //int len = 10*1000*1000;
+  int len = 1000*1000;
+  cout<<"Generating test data."<<endl;
+  initialize_in_strings(len);
+  initialize_out_strings(len);
+  assert(in_strings.size() == len);
+  assert(out_strings.size() == len);
+
+  cout<<"Testing interning."<<endl;
   std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
   std::vector<std::thread> my_threads;
@@ -87,36 +114,43 @@ int main() {
 
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed_seconds = end-begin;
-  cout<<"Time elapsed: "<<elapsed_seconds.count()<<"s."<<endl;
+  cout<<"Interned "<<len<<" strings using "<<tot_threads<<" threads in "<<elapsed_seconds.count()<<"s."<<endl;
+
+  cout<<"Validating"<<endl;
+  cout<<"Checking that the interned versions are equal to the original... "<<std::flush;
+  for (int i=0; i<len; i++) {
+    assert(out_strings[i].value);
+    assert (in_strings[i] == out_strings[i]);
+  }
+  cout<<"Done."<<endl;
+
+  cout<<"Checking that resulting strings have no duplicates (using std::string and std::unordered_map, so this might be slow)... "<<std::flush;
+  std::unordered_map<std::string, hash_t> m;
+  for (int i=0; i<len; i++) {
+    string s(in_strings[i]);
+    if (m.count(s)) {
+      assert(m[s] == out_strings[i].value);
+    } else {
+      m[s] = out_strings[i].value;
+    }
+  }
+  cout<<"Done."<<endl;
+
 
   return 0;
 }
 
-//#define DEF_INTERN(name, str) {
+int main() {
 
-  /*
-DEF_INTERN(EQ, "==");
-DEF_INTERN(IF, "if");
+  int ret = 0;
 
-namespace to_be_interned {
-  char *EQ = "==";
-  char *IF = "==";
-}
-
-namespace pre {
-  Token EQ = hash(to_be_interned.EQ);
-  Token IF = hash(to_be_interned.IF);
-}
-
-run_pre_interning{Interner &interner}
-{
-  {
-    char *interned = interner.intern(to_be_interned.EQ);
-    assert(interned = to_be_interned.EQ);
+  if(ret = test_basic()) {
+    return ret;
   }
-}
 
-if (symbol == SYM.IF) {
+  //return 0;
+  if(ret = test_major()) {
+    return ret;
+  }
 
 }
-*/

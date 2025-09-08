@@ -7,7 +7,7 @@ struct Arena {
   void *data;
   void *ptr;
 
-  int count;
+  int count; // Purely for info/debugging
 
   void *_align(void *start, size_t alignment) {
     assert(alignment-(alignment&-alignment) == 0 && "alignment needs to be a power of two");
@@ -35,18 +35,20 @@ struct Arena {
       void *ret = _align(ptr, alignment);
       ptr = _align(ptr, alignment) + length;
       return ret;
+      /*
     } else if (length > capacity/16) {
       // Don't waste too much space...
       // In such a case just offload to the default allocator...
       // TODO: does this make sense?
       return calloc(1, length);
+      */
     } else {
       capacity = capacity*2;
       data = allocate_mmap(capacity);
       ptr = data + length;
       count += 1;
       printf("Page full, creating a new one %d\n", count);
-      return ptr;
+      return data;
     }
   }
 };

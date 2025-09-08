@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 #include "hash.h"
+#include <sstream>
 using std::string;
 using std::ostream;
 
@@ -54,6 +55,11 @@ struct StringPiece{
     auto s = (SavedString *)unhash64(p.value);
     data = s->data;
     size = s->size;
+  }
+  explicit operator std::string() {
+    std::ostringstream os;
+    os<<this;
+    return os.str();
   }
 };
 ostream& operator<<(ostream& ioOut, StringPiece s) {

@@ -82,7 +82,7 @@ struct Shard {
 
 
 struct Sharded {
-  static constexpr int num_sharding_bits = 11;
+  static constexpr int num_sharding_bits = 12;
 
   Shard shards[1<<num_sharding_bits];
 

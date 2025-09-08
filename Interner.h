@@ -28,6 +28,12 @@ struct StringInterner {
 
   InternedToken find(StringPiece p, hash_t h);
   InternedToken intern(StringPiece p, hash_t h);
+
+  InternedToken intern(StringPiece p) {
+    hash_t h = hash_string(p);
+    return intern(p,h);
+  }
+
   void print();
 };
 
@@ -123,9 +129,13 @@ namespace {
     }
   }
 
-  // TODO: use an arena instead of calloc
   InternedToken toToken(SavedString *s) {
     InternedToken ret;
+    if (s != NULL && s->size> 10000) {
+
+
+    }
+    assert(s==NULL || s->size<=10000); // XXX
     assert(unhash64(hash64((uint64_t)s)) == (uint64_t) s);
     ret.value = hash64((uint64_t) s);
     return ret;
