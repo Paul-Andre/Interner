@@ -13,13 +13,13 @@ using std::endl;
 
 typedef __uint64_t uint64_t;
 
-SavedString *create_random_string(int max_len){
+SavedString *create_random_string(int max_len, bool caps=false){
   // this is stupid. TODO remove random_scratch;
   char random_scratch[16];
   assert(max_len<=16);
   int len = 1+rand()%max_len;
   for (int i = 0; i<len; i++) {
-    random_scratch[i] = 'a'+(rand()%26);
+    random_scratch[i] = (caps?'A':'a')+(rand()%26);
   }
   return new_saved_string(StringPiece(len, random_scratch));
 }
@@ -49,8 +49,8 @@ void thread_function(int x, int begin, int end) {
 
 void initialize_in_strings(int len) {
   vector<StringPiece> recurring;
-  for (int i = 0; i<10*1000 ; i++) {
-    SavedString *r = create_random_string(16);
+  for (int i = 0; i<=len/100 ; i++) {
+    SavedString *r = create_random_string(16, true);
     recurring.push_back(r);
   }
 
@@ -89,14 +89,15 @@ int test_basic() {
 
 int test_major() {
   //int len = 10*1000*1000;
-  int len = 1000*1000;
+  int len = 10*1000*1000;
+  cout<<"Starting to test interning."<<endl;
   cout<<"Generating test data."<<endl;
   initialize_in_strings(len);
   initialize_out_strings(len);
   assert(in_strings.size() == len);
   assert(out_strings.size() == len);
 
-  cout<<"Testing interning."<<endl;
+  cout<<"Interning..."<<endl;
   std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
   std::vector<std::thread> my_threads;
@@ -124,17 +125,35 @@ int test_major() {
   }
   cout<<"Done."<<endl;
 
-  cout<<"Checking that resulting strings have no duplicates (using std::string and std::unordered_map, so this might be slow)... "<<std::flush;
+  cout<<"Checking that duplicates are properly de-deplicated (this check uses std::string and std::unordered_map, so it might be slow)... "<<std::flush;
   std::unordered_map<std::string, hash_t> m;
+  //std::unordered_map<std::string, int> cnt;
+
+  // Used as a sanity test for the test itself. If no duplicate was ever tested, then there is a problem with the test.
+  int num_tested_duplicate = 0;
+
   for (int i=0; i<len; i++) {
     string s(in_strings[i]);
     if (m.count(s)) {
       assert(m[s] == out_strings[i].value);
+      num_tested_duplicate+=1;
     } else {
       m[s] = out_strings[i].value;
     }
+    //cnt[s]++;
   }
+  /*
+  for(auto &a: cnt) {
+    cout<<a.first<<" "<<a.second<<endl;
+  }
+  */
+
+  assert(num_tested_duplicate);
   cout<<"Done."<<endl;
+  //cout<<(double)num_tested_duplicate/len<<endl;
+
+
+  // TODO; intrusively test the insides of the interner to see that no other data was created.
 
 
   return 0;

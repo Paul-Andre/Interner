@@ -47,7 +47,7 @@ struct Arena {
       data = allocate_mmap(capacity);
       ptr = data + length;
       count += 1;
-      printf("Page full, creating a new one %d\n", count);
+      //printf("Page full, creating a new one %d\n", count);
       return data;
     }
   }

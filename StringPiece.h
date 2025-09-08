@@ -31,6 +31,9 @@ struct InternedToken {
   }
 };
 
+struct StringPiece;
+ostream& operator<<(ostream& ioOut, StringPiece s);
+
 struct StringPiece{
   ssize_t size;
   const char *data;
@@ -58,7 +61,7 @@ struct StringPiece{
   }
   explicit operator std::string() {
     std::ostringstream os;
-    os<<this;
+    os<<(*this);
     return os.str();
   }
 };
